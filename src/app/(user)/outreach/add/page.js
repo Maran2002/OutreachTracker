@@ -1,14 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { PlusCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { PlusCircle, ArrowLeft, CheckCircle2, BookUser } from 'lucide-react';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Button from '@/components/ui/Button';
 import SearchableDropdown from '@/components/ui/SearchableDropdown';
 import DatePicker from '@/components/ui/DatePicker';
+import EmailGalleryCombobox from '@/components/ui/EmailGalleryCombobox';
 import { OUTREACH_TYPES, OUTREACH_METHODS, OUTREACH_STATUSES } from '@/constants/outreach';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AddOutreachPage() {
   const router = useRouter();
@@ -35,10 +38,93 @@ export default function AddOutreachPage() {
   const [serverError, setServerError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Email gallery contacts
+  const [galleryContacts, setGalleryContacts] = useState([]);
+  const [selectedGalleryId, setSelectedGalleryId] = useState('');
+
+  // Build dropdown options for the Quick-Fill SearchableDropdown
+  const galleryOptions = galleryContacts.map((c) => ({
+    value: c._id,
+    label: `${c.name} — ${c.email} (${c.position}, ${c.companyName})`,
+  }));
+
+  // Handle Quick-Fill gallery selection → auto-fill form + sync combobox
+  const handleGallerySelect = (id) => {
+    setSelectedGalleryId(id);
+    if (!id) return;
+    const contact = galleryContacts.find((c) => c._id === id);
+    if (!contact) return;
+    setFormData((prev) => ({
+      ...prev,
+      contactName: contact.name,
+      contactRole: contact.position,
+      company: contact.companyName,
+      contactUrl: contact.email,
+    }));
+    setErrors((prev) => ({ ...prev, contactName: '', company: '', contactUrl: '' }));
+  };
+
+  // Load email gallery contacts on mount
+  const fetchGalleryContacts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/email-gallery?limit=200&sortBy=name&sortOrder=asc');
+      if (res.ok) {
+        const json = await res.json();
+        setGalleryContacts(json.data || []);
+      }
+    } catch {
+      // Non-critical — silently ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGalleryContacts();
+  }, [fetchGalleryContacts]);
+
+  // Called when user picks a contact from the combobox dropdown
+  const handleContactSelect = (contact) => {
+    if (!contact) return;
+    setFormData((prev) => ({
+      ...prev,
+      contactName: contact.name,
+      contactRole: contact.position,
+      company: contact.companyName,
+      contactUrl: contact.email,
+    }));
+    setErrors((prev) => ({
+      ...prev,
+      contactName: '',
+      company: '',
+      contactUrl: '',
+    }));
+  };
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+  };
+
+  // Silently upsert email to gallery when contactUrl is a valid email
+  // and was NOT selected from the gallery (i.e. manually typed)
+  const upsertToGallery = async () => {
+    const email = formData.contactUrl?.trim();
+    if (!email || !EMAIL_REGEX.test(email)) return;
+
+    try {
+      await fetch('/api/v1/email-gallery/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.contactName || '',
+          email,
+          position: formData.contactRole || '',
+          companyName: formData.company || '',
+        }),
+      });
+    } catch {
+      // Silently ignore — best-effort operation
     }
   };
 
@@ -76,6 +162,9 @@ export default function AddOutreachPage() {
         setIsLoading(false);
         return;
       }
+
+      // Best-effort: add contact to email gallery if not already there
+      await upsertToGallery();
 
       setSuccess(true);
       setTimeout(() => {
@@ -122,10 +211,35 @@ export default function AddOutreachPage() {
       )}
 
       <form onSubmit={handleSubmit} className="card flex flex-col gap-6">
+
+        {/* Email Gallery Quick-Pick */}
+        {galleryContacts.length > 0 && (
+          <div className="p-4 rounded-lg bg-blue-500/5 border border-blue-500/20">
+            <div className="flex items-center gap-2 mb-3">
+              <BookUser className="w-4 h-4 text-blue-400" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-blue-400">
+                Quick-Fill from Email Gallery
+              </span>
+            </div>
+            <SearchableDropdown
+              placeholder="Search and select a saved contact to auto-fill the form..."
+              options={galleryOptions}
+              value={selectedGalleryId}
+              onChange={handleGallerySelect}
+              searchPlaceholder="Type to search contacts..."
+            />
+            {selectedGalleryId && (
+              <p className="text-[11px] text-slate-500 mt-2">
+                Contact fields filled from gallery. You can still edit them manually below.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Section 1: Core Target Info */}
         <div>
           <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-800">
-            1. Prospect & Target Info
+            1. Prospect &amp; Target Info
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -154,11 +268,21 @@ export default function AddOutreachPage() {
               onChange={(e) => handleChange('contactRole', e.target.value)}
             />
 
-            <Input
+            <EmailGalleryCombobox
               label="Email / LinkedIn Profile URL"
               placeholder="e.g. sarah@acme.com or linkedin.com/in/sarah"
               value={formData.contactUrl}
-              onChange={(e) => handleChange('contactUrl', e.target.value)}
+              onChange={(val) => {
+                setSelectedGalleryId(''); // deselect quick-fill when user types manually
+                handleChange('contactUrl', val);
+              }}
+              onContactSelect={(contact) => {
+                if (contact) setSelectedGalleryId(contact._id);
+                handleContactSelect(contact);
+              }}
+              contacts={galleryContacts}
+              error={errors.contactUrl}
+              helperText="Select a saved contact to auto-fill · new emails are saved to your gallery automatically"
             />
           </div>
         </div>
@@ -209,7 +333,7 @@ export default function AddOutreachPage() {
         {/* Section 3: Status & Follow-up Tracking */}
         <div>
           <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-4 pb-2 border-b border-slate-800">
-            3. Status & Follow-up Plan
+            3. Status &amp; Follow-up Plan
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

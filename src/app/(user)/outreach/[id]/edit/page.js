@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Trash2, CheckCircle2 } from 'lucide-react';
 import Input from '@/components/ui/Input';
@@ -11,7 +11,10 @@ import DatePicker from '@/components/ui/DatePicker';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
+import EmailGalleryCombobox from '@/components/ui/EmailGalleryCombobox';
 import { OUTREACH_TYPES, OUTREACH_METHODS, OUTREACH_STATUSES } from '@/constants/outreach';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function OutreachEditPage({ params }) {
   const router = useRouter();
@@ -24,6 +27,9 @@ export default function OutreachEditPage({ params }) {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Email gallery contacts
+  const [galleryContacts, setGalleryContacts] = useState([]);
 
   useEffect(() => {
     async function fetchRecord() {
@@ -43,8 +49,57 @@ export default function OutreachEditPage({ params }) {
     fetchRecord();
   }, [id]);
 
+  const fetchGalleryContacts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/email-gallery?limit=200&sortBy=name&sortOrder=asc');
+      if (res.ok) {
+        const json = await res.json();
+        setGalleryContacts(json.data || []);
+      }
+    } catch {
+      // Non-critical — silently ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGalleryContacts();
+  }, [fetchGalleryContacts]);
+
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Called when user picks a contact from the gallery combobox dropdown
+  const handleContactSelect = (contact) => {
+    if (!contact) return;
+    setFormData((prev) => ({
+      ...prev,
+      contactName: contact.name,
+      contactRole: contact.position,
+      company: contact.companyName,
+      contactUrl: contact.email,
+    }));
+  };
+
+  // Silently upsert a manually-typed email to gallery (duplicate check by email)
+  const upsertToGallery = async () => {
+    const email = formData?.contactUrl?.trim();
+    if (!email || !EMAIL_REGEX.test(email)) return;
+
+    try {
+      await fetch('/api/v1/email-gallery/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.contactName || '',
+          email,
+          position: formData.contactRole || '',
+          companyName: formData.company || '',
+        }),
+      });
+    } catch {
+      // Silently ignore — best-effort operation
+    }
   };
 
   const handleSave = async (e) => {
@@ -60,6 +115,10 @@ export default function OutreachEditPage({ params }) {
       if (!res.ok) throw new Error('Save failed');
       const json = await res.json();
       setFormData(json.data);
+
+      // Best-effort: upsert contact to gallery if a valid email is present
+      await upsertToGallery();
+
       setSaveSuccess(true);
       setTimeout(() => {
         router.push(`/outreach/${id}`);
@@ -145,7 +204,7 @@ export default function OutreachEditPage({ params }) {
         {/* Section 1: Prospect & Contact */}
         <div className="card flex flex-col gap-5">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 pb-3 border-b border-slate-800">
-            1. Prospect & Contact Details
+            1. Prospect &amp; Contact Details
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
@@ -168,11 +227,14 @@ export default function OutreachEditPage({ params }) {
               onChange={(e) => handleChange('contactRole', e.target.value)}
               placeholder="e.g. Hiring Manager"
             />
-            <Input
+            <EmailGalleryCombobox
               label="Email / LinkedIn / URL"
-              value={formData.contactUrl || ''}
-              onChange={(e) => handleChange('contactUrl', e.target.value)}
               placeholder="e.g. jane@acme.com"
+              value={formData.contactUrl || ''}
+              onChange={(val) => handleChange('contactUrl', val)}
+              onContactSelect={handleContactSelect}
+              contacts={galleryContacts}
+              helperText="Select a saved contact to auto-fill · new emails are saved to your gallery on save"
             />
           </div>
         </div>
@@ -206,7 +268,7 @@ export default function OutreachEditPage({ params }) {
         {/* Section 3: Status & Follow-up */}
         <div className="card flex flex-col gap-5">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 pb-3 border-b border-slate-800">
-            3. Status & Follow-up Plan
+            3. Status &amp; Follow-up Plan
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
