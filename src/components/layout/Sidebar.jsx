@@ -11,6 +11,7 @@ import {
   Bell,
   User,
   LogOut,
+  Mail,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -30,6 +31,7 @@ export default function Sidebar() {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/outreach/add', label: 'Add Outreach', icon: PlusCircle },
     { href: '/outreach', label: 'All Outreach', icon: ListFilter },
+    { href: '/email-gallery', label: 'Email Gallery', icon: Mail },
     { href: '/reminders', label: 'Reminders', icon: Bell },
     { href: '/profile', label: 'Profile Settings', icon: User },
   ];

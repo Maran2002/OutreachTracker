@@ -183,6 +183,28 @@ export const userListQuerySchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
 
+// ---- Email Gallery schemas ----
+
+export const createEmailRecordSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200),
+  email: z.string().email('Invalid email address').max(255),
+  position: z.string().min(1, 'Position is required').max(200),
+  companyName: z.string().min(1, 'Company name is required').max(200),
+});
+
+export const updateEmailRecordSchema = createEmailRecordSchema.partial();
+
+export const emailRecordListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  search: z.string().max(200).optional(),
+  sortBy: z
+    .enum(['name', 'email', 'position', 'companyName', 'createdAt', 'updatedAt'])
+    .default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc'),
+  userId: z.string().optional(),
+});
+
 /**
  * Parse and validate Zod schema from a URL's search params.
  * Returns { data } on success or { error: Response } on failure.

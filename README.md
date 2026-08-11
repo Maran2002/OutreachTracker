@@ -29,16 +29,20 @@ OutreachTracker is a multi-user platform with two access levels:
 - **Detailed view + edit** — Read-only detail view with a separate edit form
 - **Dashboard metrics** — Overview of total outreach, response rates, upcoming follow-ups
 - **Search & filter** — Filter by status, type, method; search by company or contact
-- **Profile management** — Update personal details, change password, or close account
+- **Email Gallery** — Store and manage contact emails (name, email, position, company) from different organisations with add, edit, delete, and detailed view
+- **Profile management** — Update personal details and name reflects instantly in the header
 - **Responsive dark-mode UI** — Works across all screen sizes
 
 ### 🔐 Admin Features
 - **Admin console** with granular, role-based permission system
 - **User directory** — View all registered users with outreach counts
 - **Global outreach audit** — Read-only view of all outreach records across all users
+- **Global Email Gallery** — Read-only view of all users' email contacts with user-based filter
 - **Admin management** — Create/edit/deactivate other admins with custom permissions
-- **Admin profile** — Update admin credentials including password change
+- **Admin profile** — Update admin credentials including password change (requires `profile.edit` permission)
+- **System Control Dashboard** — Consolidated stats endpoint; only `dashboard.view` is required
 - **Access control** — Pages and sidebar items hidden/locked based on permission set
+- **Live header name update** — Header reflects the new name immediately after profile save
 
 ---
 
@@ -72,6 +76,7 @@ src/
 │   │   │   └── [id]/
 │   │   │       ├── page.js     # Read-only detail view
 │   │   │       └── edit/page.js # Edit form
+│   │   ├── email-gallery/      # Email contacts gallery (CRUD)
 │   │   ├── reminders/
 │   │   └── profile/
 │   ├── admin/              # Admin console pages (permission-gated)
@@ -79,18 +84,25 @@ src/
 │   │   ├── admins/
 │   │   ├── users/
 │   │   ├── outreaches/
+│   │   ├── email-gallery/      # Global read-only email gallery + user filter
 │   │   └── profile/
 │   └── api/v1/             # REST API route handlers
 │       ├── auth/           # Login, register, logout, forgot/reset password
-│       ├── admin/          # Admin-specific APIs (users, outreaches, admins, session)
+│       ├── admin/          # Admin-specific APIs
+│       │   ├── dashboard/stats/  # Consolidated stats (dashboard.view only)
+│       │   ├── email-gallery/    # Global email gallery read
+│       │   ├── users/
+│       │   ├── outreaches/
+│       │   └── admins/
 │       ├── outreaches/     # CRUD for outreach records
+│       ├── email-gallery/  # User-scoped CRUD for email contacts
 │       ├── reminders/      # Reminder listing and management
-│       ├── dashboard/      # Dashboard metrics aggregation
+│       ├── dashboard/      # User dashboard metrics aggregation
 │       └── profile/        # Profile update & close account
 │
 ├── components/
 │   ├── layout/             # Sidebar, AdminSidebar, Topbar, AppInfoPanel
-│   ├── providers/          # AdminProvider (context for permissions)
+│   ├── providers/          # AdminProvider & UserProvider (context + live name update)
 │   └── ui/                 # Reusable UI components (Input, Button, Modal, etc.)
 │
 ├── constants/              # Outreach types, methods, statuses, admin permissions
@@ -102,7 +114,7 @@ src/
 │   ├── utils/              # formatDate, apiSuccess, apiError, apiPaginated helpers
 │   └── validation/         # Zod schemas for all request bodies and query params
 │
-├── models/                 # Mongoose models: User, Admin, Outreach, Reminder
+├── models/                 # Mongoose models: User, Admin, Outreach, Reminder, EmailRecord
 └── middleware.js            # Route protection: user and admin path guards
 ```
 
@@ -115,10 +127,11 @@ src/
 - All protected routes guarded at **both middleware level and layout level**
 - Admin API routes verify **both session AND per-field permissions** server-side
 - Admin permissions are granular:
-  - `dashboard.view`, `users.view`, `outreaches.view`
+  - `dashboard.view`, `users.view`, `outreaches.view`, `email_gallery.view`
   - `admins.view`, `admins.create`, `admins.edit`, `admins.delete`
-  - `profile.edit`
+  - `profile.edit` — required for both UI access and API self-update
 - Sidebar links and page content dynamically filtered to match permissions
+- Dashboard stats use a **dedicated endpoint** (`/api/v1/admin/dashboard/stats`) requiring only `dashboard.view` — never touches the per-feature list endpoints
 
 ---
 
@@ -170,6 +183,17 @@ src/
 | reminderNumber | Number | 1 or 2 |
 | scheduledFor | Date | When reminder fires |
 | status | Enum | `pending`, `sent`, `cancelled` |
+
+### EmailRecord
+| Field | Type | Notes |
+|---|---|---|
+| userId | ObjectId | Reference to User (owner) |
+| name | String | Contact full name |
+| email | String | Contact email address |
+| position | String | Contact's job position/role |
+| companyName | String | Company or organisation |
+| createdAt | Date | Auto-set timestamp |
+| updatedAt | Date | Auto-updated timestamp |
 
 ---
 
@@ -272,13 +296,15 @@ db.admins.insertOne({
 | `/outreach/[id]` | Read-only detailed view of a record |
 | `/outreach/[id]/edit` | Edit an existing outreach record |
 | `/reminders` | Pending, upcoming, and sent reminders |
+| `/email-gallery` | User's email contacts gallery (CRUD) |
 | `/profile` | User profile & reminder settings |
 | `/admin/login` | Admin login (separate from user login) |
-| `/admin/dashboard` | Admin system overview |
+| `/admin/dashboard` | Admin system overview (consolidated stats) |
 | `/admin/users` | Read-only user directory |
 | `/admin/outreaches` | Read-only global outreach audit |
+| `/admin/email-gallery` | Read-only global email gallery + user filter |
 | `/admin/admins` | Admin management & permissions |
-| `/admin/profile` | Admin profile & credential update |
+| `/admin/profile` | Admin profile & credential update (requires `profile.edit`) |
 
 ---
 

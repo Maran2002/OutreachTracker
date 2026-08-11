@@ -3,11 +3,36 @@
 import React, { useState } from 'react';
 import { Info } from 'lucide-react';
 import AppInfoPanel from './AppInfoPanel';
+import { useAdmin } from '@/components/providers/AdminProvider';
+import { useUser } from '@/components/providers/UserProvider';
+
+function SafeAdminName({ fallback }) {
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const admin = useAdmin();
+    return admin?.name || fallback || 'Admin';
+  } catch {
+    return fallback || 'Admin';
+  }
+}
+
+function SafeUserName({ fallback }) {
+  try {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const user = useUser();
+    return user?.name || fallback || 'User';
+  } catch {
+    return fallback || 'User';
+  }
+}
 
 export default function Topbar({ userName, role = 'user' }) {
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
-
   const isAdmin = role === 'admin';
+
+  const displayName = isAdmin
+    ? <SafeAdminName fallback={userName} />
+    : <SafeUserName fallback={userName} />;
 
   return (
     <>
@@ -28,7 +53,7 @@ export default function Topbar({ userName, role = 'user' }) {
           </span>
           <div className="min-w-0 hidden sm:block">
             <p className="text-sm font-semibold text-slate-100 truncate leading-tight">
-              {userName || 'User'}
+              {displayName}
             </p>
             <p className={`text-[10px] font-medium uppercase tracking-wider leading-tight ${isAdmin ? 'text-red-400' : 'text-slate-500'}`}>
               {isAdmin ? 'Administrator' : 'Logged in'}
@@ -36,23 +61,8 @@ export default function Topbar({ userName, role = 'user' }) {
           </div>
         </div>
 
-        {/* Right — status badge + info icon */}
+        {/* Right — info icon */}
         <div className="flex items-center gap-3">
-          {/* <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${
-              isAdmin
-                ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-            }`}
-          >
-            <span
-              className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                isAdmin ? 'bg-red-400' : 'bg-emerald-400'
-              }`}
-            />
-            {isAdmin ? 'Admin Session' : 'Active Session'}
-          </span> */}
-
           <button
             type="button"
             id="app-info-btn"

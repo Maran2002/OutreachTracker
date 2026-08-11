@@ -9,9 +9,11 @@ import SearchableDropdown from '@/components/ui/SearchableDropdown';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
+import { useUserActions } from '@/components/providers/UserProvider';
 
 export default function ProfilePage() {
   const router = useRouter();
+  const setHeaderUser = useUserActions();
 
   const [user, setUser] = useState(null);
   const [formData, setFormData] = useState({
@@ -75,6 +77,12 @@ export default function ProfilePage() {
       });
 
       if (!res.ok) throw new Error('Update failed');
+
+      // Update name in header via context
+      if (setHeaderUser) {
+        setHeaderUser((prev) => ({ ...prev, name: formData.name }));
+      }
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch {

@@ -20,24 +20,18 @@ export default function AdminDashboardPage() {
     setIsLoading(true);
     setError(false);
     try {
-      const [usersRes, outreachesRes, adminsRes] = await Promise.all([
-        fetch('/api/v1/admin/users?limit=1'),
-        fetch('/api/v1/admin/outreaches?limit=1'),
-        fetch('/api/v1/admin/admins?limit=1'),
-      ]);
-
-      if (!usersRes.ok || !outreachesRes.ok || !adminsRes.ok) {
+      const res = await fetch('/api/v1/admin/dashboard/stats');
+      if (!res.ok) {
         throw new Error('Failed to fetch admin stats');
       }
 
-      const usersData = await usersRes.json();
-      const outreachesData = await outreachesRes.json();
-      const adminsData = await adminsRes.json();
+      const json = await res.json();
+      const data = json.data || {};
 
       setStats({
-        totalUsers: usersData.pagination?.total || 0,
-        totalOutreaches: outreachesData.pagination?.total || 0,
-        totalAdmins: adminsData.pagination?.total || 0,
+        totalUsers: data.totalUsers || 0,
+        totalOutreaches: data.totalOutreaches || 0,
+        totalAdmins: data.totalAdmins || 0,
       });
     } catch {
       setError(true);
@@ -112,12 +106,12 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
-      <div className="card border-slate-800 p-6">
+      {/* <div className="card border-slate-800 p-6">
         <h3 className="text-base font-semibold text-slate-100 mb-2">Admin Governance & Permissions</h3>
         <p className="text-xs text-slate-400 leading-relaxed">
           The Admin area operates under granular server-side permission checks (<code className="text-red-400 font-mono">users.view</code>, <code className="text-red-400 font-mono">outreaches.view</code>, <code className="text-red-400 font-mono">admins.create</code>, etc.). Admins have read-only visibility into regular users and outreach records to maintain data safety.
         </p>
-      </div>
+      </div> */}
     </div>
   );
 }

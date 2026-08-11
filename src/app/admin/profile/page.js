@@ -6,9 +6,15 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import ErrorState from '@/components/ui/ErrorState';
+import AccessDenied from '@/components/ui/AccessDenied';
+import { useAdmin, useAdminActions } from '@/components/providers/AdminProvider';
 
 export default function AdminProfilePage() {
-  const [admin, setAdmin] = useState(null);
+  const admin = useAdmin();
+  const setAdmin = useAdminActions();
+
+  const hasAccess = (admin?.permissions || []).includes('profile.edit');
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,9 +32,9 @@ export default function AdminProfilePage() {
         const res = await fetch('/api/v1/admin/session');
         if (!res.ok) throw new Error('Not auth');
         const json = await res.json();
-        setAdmin(json.data?.admin || json.data?.user || null);
-        setName(json.data?.admin?.name || '');
-        setEmail(json.data?.admin?.email || '');
+        const data = json.data?.admin || json.data?.user || null;
+        setName(data?.name || '');
+        setEmail(data?.email || '');
       } catch {
         setError(true);
       } finally {
@@ -63,6 +69,12 @@ export default function AdminProfilePage() {
       });
 
       if (!res.ok) throw new Error('Save failed');
+
+      // Update name in header via context
+      if (setAdmin) {
+        setAdmin((prev) => ({ ...prev, name }));
+      }
+
       setSaveSuccess(true);
       setPassword('');
       setConfirmPassword('');
@@ -74,6 +86,7 @@ export default function AdminProfilePage() {
     }
   };
 
+  if (!hasAccess) return <AccessDenied permission="profile.edit" />;
   if (isLoading) return <div className="p-6 max-w-xl mx-auto"><SkeletonCard /></div>;
   if (error) return <ErrorState onRetry={() => location.reload()} />;
 

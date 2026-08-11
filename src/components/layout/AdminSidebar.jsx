@@ -13,6 +13,7 @@ import {
   User,
   LogOut,
   LayoutDashboard,
+  Mail,
 } from 'lucide-react';
 
 export default function AdminSidebar() {
@@ -34,7 +35,8 @@ export default function AdminSidebar() {
     { href: '/admin/admins', label: 'Manage Admins', icon: UserCheck, permission: 'admins.view' },
     { href: '/admin/users', label: 'Users', icon: Users, permission: 'users.view' },
     { href: '/admin/outreaches', label: 'Outreaches', icon: Send, permission: 'outreaches.view' },
-    { href: '/admin/profile', label: 'Admin Profile', icon: User },
+    { href: '/admin/email-gallery', label: 'Email Gallery', icon: Mail, permission: 'email_gallery.view' },
+    { href: '/admin/profile', label: 'Admin Profile', icon: User, permission: 'profile.edit' },
   ];
 
   const visibleItems = navItems.filter((item) => {

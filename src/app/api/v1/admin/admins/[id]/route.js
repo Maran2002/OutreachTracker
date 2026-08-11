@@ -35,8 +35,13 @@ export async function PATCH(request, { params }) {
 
   const isSelf = id === session.userId;
 
-  // Only allow admins.edit OR self-updates
-  if (!isSelf && (!actor || !hasPermission(actor.permissions, 'admins.edit'))) {
+  if (isSelf) {
+    // Self-update requires profile.edit permission
+    if (!actor || !hasPermission(actor.permissions, 'profile.edit')) {
+      return apiError('FORBIDDEN', 'Missing permission: profile.edit', 403);
+    }
+  } else if (!actor || !hasPermission(actor.permissions, 'admins.edit')) {
+    // Editing another admin requires admins.edit permission
     return apiError('FORBIDDEN', 'Missing permission: admins.edit', 403);
   }
 

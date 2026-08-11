@@ -32,7 +32,9 @@ export async function middleware(request) {
     pathname === '/reminders' ||
     pathname.startsWith('/reminders/') ||
     pathname === '/profile' ||
-    pathname.startsWith('/profile/');
+    pathname.startsWith('/profile/') ||
+    pathname === '/email-gallery' ||
+    pathname.startsWith('/email-gallery/');
 
   const isAdminProtected =
     pathname.startsWith('/admin') && pathname !== '/admin/login';

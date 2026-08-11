@@ -58,6 +58,7 @@ export const ADMIN_PERMISSIONS = [
   { value: 'admins.delete', label: 'Delete Admins' },
   { value: 'dashboard.view', label: 'View Dashboard' },
   { value: 'profile.edit', label: 'Edit Profile' },
+  { value: 'email_gallery.view', label: 'View Email Gallery' },
 ];
 
 // Pagination
