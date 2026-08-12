@@ -44,6 +44,15 @@ export const resetPasswordSchema = z
     path: ['confirmPassword'],
   });
 
+export const verifyOtpSchema = z.object({
+  email: z.string().email('Invalid email address').max(255),
+  otp: z
+    .string()
+    .length(6, 'OTP must be exactly 6 digits')
+    .regex(/^\d+$/, 'OTP must contain only numbers'),
+  purpose: z.enum(['email_verification', 'password_reset']),
+});
+
 // ---- Outreach schemas ----
 
 const OUTREACH_TYPES = ['cold_email', 'warm_intro', 'linkedin_dm', 'cto_email'];

@@ -1,44 +1,62 @@
-import crypto from 'crypto';
+import { jwtVerify } from 'jose';
 import dbConnect from '@/lib/db/mongodb';
 import User from '@/models/User';
-import PasswordResetToken from '@/models/PasswordResetToken';
 import { hashPassword } from '@/lib/auth/password';
 import { parseRequestBody, resetPasswordSchema } from '@/lib/validation/schemas';
+import { normalizeEmail } from '@/lib/utils';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-key-minimum-64-characters-long-for-cold-outreach-tracker-session';
+const secret = new TextEncoder().encode(JWT_SECRET);
 
 export async function POST(request) {
   const { data, error } = await parseRequestBody(resetPasswordSchema, request);
   if (error) return error;
 
-  const { token, password } = data;
+  const { token, password } = data; // "token" here corresponds to our signed resetToken JWT
 
   await dbConnect();
 
-  // Hash the provided token to compare with stored hash
-  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-  const resetToken = await PasswordResetToken.findOne({
-    tokenHash,
-    usedAt: null,
-    expiresAt: { $gt: new Date() },
-  });
-
-  if (!resetToken) {
+  let email;
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    
+    if (payload.purpose !== 'password_reset') {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: { code: 'INVALID_TOKEN', message: 'Reset token is invalid or has expired' },
+        }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    email = normalizeEmail(payload.email);
+  } catch (err) {
+    console.error('JWT verification failed for reset-password:', err);
     return new Response(
       JSON.stringify({
         success: false,
-        error: { code: 'INVALID_TOKEN', message: 'Reset link is invalid or has expired' },
+        error: { code: 'INVALID_TOKEN', message: 'Reset token is invalid or has expired' },
       }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
   }
 
-  const passwordHash = await hashPassword(password);
+  // Find the active user
+  const user = await User.findOne({ email, status: 'active' });
+  if (!user) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: { code: 'USER_NOT_FOUND', message: 'User not found or is inactive' },
+      }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
-  // Update password and mark token as used atomically
-  await Promise.all([
-    User.findByIdAndUpdate(resetToken.userId, { passwordHash }),
-    PasswordResetToken.findByIdAndUpdate(resetToken._id, { usedAt: new Date() }),
-  ]);
+  // Hash new password and update user
+  const passwordHash = await hashPassword(password);
+  await User.findByIdAndUpdate(user._id, { passwordHash });
 
   return new Response(
     JSON.stringify({ success: true, data: null, message: 'Password reset successfully. Please log in.' }),
