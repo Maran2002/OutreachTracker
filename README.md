@@ -27,6 +27,8 @@ OutreachTracker is a multi-user platform with two access levels:
 - **Status tracking** — Sent, Responded, Interview Scheduled, Rejected, No Response, etc.
 - **Follow-up reminders** — Automated reminder scheduling (up to 2 per record)
 - **Detailed view + edit** — Read-only detail view with a separate edit form
+- **Multi-method Auth** — Login and register locally or via Google OAuth 2.0 (with secure profile linking)
+- **Email Verification (SMTP)** — Gmail SMTP-based 6-digit OTP verification for secure account registration and password recovery
 - **Dashboard metrics** — Overview of total outreach, response rates, upcoming follow-ups
 - **Search & filter** — Filter by status, type, method; search by company or contact
 - **Email Gallery** — Store and manage contact emails (name, email, position, company) from different organisations with add, edit, delete, and detailed view
@@ -53,7 +55,8 @@ OutreachTracker is a multi-user platform with two access levels:
 | **Framework** | [Next.js 15](https://nextjs.org/) (App Router) |
 | **UI Library** | React 19 |
 | **Database** | MongoDB via [Mongoose 8](https://mongoosejs.com/) |
-| **Auth** | JWT (via [jose](https://github.com/panva/jose)) + bcryptjs |
+| **Auth** | JWT (via [jose](https://github.com/panva/jose)) + bcryptjs + [google-auth-library](https://github.com/googleapis/google-auth-library-nodejs) |
+| **Email Service** | [Nodemailer](https://nodemailer.com/) (Gmail SMTP App Passwords) |
 | **Validation** | [Zod](https://zod.dev/) |
 | **Styling** | Vanilla CSS + Tailwind CSS v4 utility classes |
 | **Icons** | [Lucide React](https://lucide.dev/) |
@@ -122,8 +125,11 @@ src/
 
 ## 🔐 Authentication & Security
 
-- JWT sessions stored in **HTTP-only cookies** (not accessible via JS)
-- Passwords hashed with **bcrypt (12 rounds)**
+- **Google OAuth 2.0 Redirect Flow** — State-verified redirection, automatic profile linking, and secure session creation
+- **SMTP Verification (Gmail)** — 10-minute expiry 6-digit OTPs sent via Nodemailer for registration confirmation and password resets
+- **Stateless OTP Password Reset** — Secure, short-lived JWT reset tokens issued upon successful OTP verification, preventing database state leaks
+- **JWT Session Security** — Sessions stored in secure, **HTTP-only cookies** (not accessible via JS)
+- **Bcrypt Password Hashing** — Local passwords securely hashed using 12 rounds of bcrypt
 - All protected routes guarded at **both middleware level and layout level**
 - Admin API routes verify **both session AND per-field permissions** server-side
 - Admin permissions are granular:
@@ -142,11 +148,23 @@ src/
 |---|---|---|
 | name | String | Required |
 | email | String | Unique, lowercase |
-| passwordHash | String | select: false |
+| passwordHash | String | select: false (Optional if using Google auth) |
 | authProvider | Enum | `local` \| `google` |
+| googleId | String | Unique Google ID (Optional) |
+| avatar | String | Google profile image URL (Optional) |
 | status | Enum | `active` \| `inactive` \| `closed` |
 | reminderSettings | Object | intervalDays, maxReminders, timezone |
 | lastLoginAt | Date | Updated on login |
+
+### OtpToken
+| Field | Type | Notes |
+|---|---|---|
+| email | String | Target email |
+| purpose | Enum | `email_verification` \| `password_reset` |
+| otpHash | String | SHA-256 hash of the 6-digit OTP |
+| pendingUserData | Mixed | Stores { name, passwordHash } for registration flow |
+| expiresAt | Date | TTL index (automatically deleted by MongoDB) |
+| usedAt | Date | When the OTP was verified |
 
 ### Admin
 | Field | Type | Notes |
@@ -229,6 +247,18 @@ JWT_SECRET=your-secret-key-minimum-64-characters-long-for-cold-outreach-tracker
 # Cookie name for session
 SESSION_COOKIE_NAME=cold_outreach_session
 
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+NEXTAUTH_URL=http://localhost:3000
+
+# SMTP Configuration (Gmail)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-gmail-app-password
+SMTP_FROM=OutreachTracker <your-email@gmail.com>
+
 # Node environment
 NODE_ENV=development
 ```
@@ -276,7 +306,8 @@ db.admins.insertOne({
 - [ ] **Browser push notifications** — Get alerted for reminders without checking the app
 - [ ] **Kanban view** — Drag-and-drop board view of outreach by status pipeline
 - [ ] **Team / organisation accounts** — Shared workspaces for group job hunts or agency use
-- [ ] **Google OAuth** — One-click sign-in with Google (model already supports it)
+- [x] **Google OAuth** — One-click sign-in with Google
+- [x] **OTP Verification** — 6-digit code validation via SMTP (Gmail) for signups and password recovery
 - [ ] **Mobile app** — React Native companion app for logging outreach on the go
 - [ ] **AI-powered insights** — Suggest follow-up messages or highlight stale records
 - [ ] **Dark/light mode toggle** — Currently dark-mode only
